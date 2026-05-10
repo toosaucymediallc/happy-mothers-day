@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Happy Mother's Day!</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #fef6f0 0%, #f8f0f8 50%, #f0e8f0 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Georgia', serif;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    padding: 12px;
+  }
+  .book {
+    width: 100%;
+    max-width: 400px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 8px 40px rgba(139,110,142,0.15), 0 2px 12px rgba(0,0,0,0.06);
+    overflow: hidden;
+    border: 1px solid rgba(200,180,200,0.3);
+    position: relative;
+  }
+  .page-container {
+    transition: opacity 0.4s ease, transform 0.4s ease;
+    opacity: 1;
+    transform: scale(1);
+  }
+  .page-container.fading {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  .page-container svg { width: 100%; display: block; }
+  .narration {
+    padding: 16px 20px;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(248,240,248,0.98));
+    border-top: 1px solid rgba(200,180,200,0.2);
+    transition: opacity 0.4s ease;
+  }
+  .narration.fading { opacity: 0; }
+  .narration p {
+    font-size: 15px;
+    line-height: 1.6;
+    color: #6b5670;
+    text-align: center;
+    font-style: italic;
+  }
+  .nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 16px;
+    background: rgba(248,244,248,0.8);
+  }
+  .nav-btn {
+    background: none;
+    border: none;
+    font-size: 26px;
+    color: #b89aac;
+    cursor: pointer;
+    padding: 4px 12px;
+    border-radius: 8px;
+    transition: color 0.2s;
+    line-height: 1;
+  }
+  .nav-btn:disabled { color: #ddd; cursor: default; }
+  .dots { display: flex; gap: 6px; align-items: center; }
+  .dot {
+    height: 7px;
+    border-radius: 4px;
+    background: #e0d4e0;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    width: 7px;
+  }
+  .dot.active { width: 20px; background: #c9b3d9; }
+  .hint {
+    margin-top: 12px;
+    font-size: 12px;
+    color: #b89aac;
+    opacity: 0.7;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<div class="book" id="book">
+  <div class="page-container" id="pageContainer"></div>
+  <div class="narration" id="narration"><p id="narrationText"></p></div>
+  <div class="nav">
+    <button class="nav-btn" id="prevBtn" onclick="goToPage(currentPage-1)">‹</button>
+    <div class="dots" id="dots"></div>
+    <button class="nav-btn" id="nextBtn" onclick="goToPage(currentPage+1)">›</button>
+  </div>
+</div>
+<p class="hint">← swipe or tap arrows →</p>
+
+<script>
+// ─── SVG Helper Functions ───
+function heartPath(x, y, size, color, opacity) {
+  return `<path d="M${x},${y+3*size} C${x},${y+1.5*size} ${x-4*size},${y-2*size} ${x},${y-5*size*0.6} C${x+4*size},${y-2*size} ${x},${y+1.5*size} ${x},${y+3*size}" fill="${color}" opacity="${opacity}"/>`;
+}
+
+function lavenderSprig(x, y, lean) {
+  let s = `<g transform="translate(${x},${y}) rotate(${lean})">`;
+  s += `<line x1="0" y1="0" x2="0" y2="40" stroke="#7a9e6d" stroke-width="2"/>`;
+  [5,10,15,20,25].forEach(py => {
+    s += `<ellipse cx="-3" cy="${py}" rx="2.5" ry="4" fill="#b8a9d4" transform="rotate(-15,-3,${py})"/>`;
+    s += `<ellipse cx="3" cy="${py}" rx="2.5" ry="4" fill="#b8a9d4" transform="rotate(15,3,${py})"/>`;
+  });
+  s += `</g>`;
+  return s;
+}
+
+function balloon(x, y, color) {
+  return `<g transform="translate(${x},${y})">
+    <line x1="0" y1="32" x2="2" y2="65" stroke="#ccc" stroke-width="1"/>
+    <ellipse cx="0" cy="18" rx="16" ry="20" fill="${color}" opacity="0.85"/>
+    <ellipse cx="-5" cy="12" rx="4" ry="6" fill="white" opacity="0.25"/>
+    <path d="M-3,37 Q0,40 3,37" fill="${color}" opacity="0.85"/>
+  </g>`;
+}
+
+function flowerBouquet(x, y, scale) {
+  let s = `<g transform="translate(${x},${y}) scale(${scale})">`;
+  s += `<path d="M-25,20 L0,60 L25,20" fill="#e8c4d8" stroke="#d4a0c0" stroke-width="1.5"/>`;
+  s += `<path d="M-20,25 L0,55 L20,25" fill="#f0d4e4"/>`;
+  s += `<ellipse cx="0" cy="58" rx="8" ry="4" fill="#c490b0"/>`;
+  s += `<line x1="-8" y1="20" x2="-12" y2="-10" stroke="#7a9e6d" stroke-width="2.5"/>`;
+  s += `<line x1="0" y1="20" x2="0" y2="-15" stroke="#7a9e6d" stroke-width="2.5"/>`;
+  s += `<line x1="8" y1="20" x2="10" y2="-8" stroke="#7a9e6d" stroke-width="2.5"/>`;
+  s += `<line x1="-4" y1="20" x2="-6" y2="-5" stroke="#7a9e6d" stroke-width="2"/>`;
+  s += `<line x1="4" y1="20" x2="7" y2="-12" stroke="#7a9e6d" stroke-width="2"/>`;
+  s += `<ellipse cx="-14" cy="5" rx="6" ry="3" fill="#8fb87a" transform="rotate(-30,-14,5)"/>`;
+  s += `<ellipse cx="12" cy="8" rx="6" ry="3" fill="#8fb87a" transform="rotate(25,12,8)"/>`;
+  const flowers = [[-12,-14,'#f4b8c1'],[0,-20,'#c9b3d9'],[10,-12,'#f4b8c1'],[-6,-8,'#fdd9b5'],[7,-18,'#c9b3d9']];
+  flowers.forEach(([fx,fy,color]) => {
+    [0,60,120,180,240,300].forEach(angle => {
+      const rad = angle * Math.PI / 180;
+      const cx = fx + Math.cos(rad)*5;
+      const cy = fy + Math.sin(rad)*5;
+      s += `<ellipse cx="${cx}" cy="${cy}" rx="4" ry="3" fill="${color}" transform="rotate(${angle},${cx},${cy})"/>`;
+    });
+    s += `<circle cx="${fx}" cy="${fy}" r="3" fill="#ffeaa7"/>`;
+  });
+  s += `</g>`;
+  return s;
+}
+
+function toddlerBoy(x, y, scale, holdingFlowers) {
+  let s = `<g transform="translate(${x},${y}) scale(${scale})">`;
+  s += `<rect x="-12" y="10" width="24" height="28" rx="8" fill="#a8d8ea"/>`;
+  s += `<rect x="-10" y="36" width="8" height="14" rx="4" fill="#c9b99a"/>`;
+  s += `<rect x="2" y="36" width="8" height="14" rx="4" fill="#c9b99a"/>`;
+  s += `<ellipse cx="-6" cy="50" rx="6" ry="3.5" fill="#7a6e5d"/>`;
+  s += `<ellipse cx="6" cy="50" rx="6" ry="3.5" fill="#7a6e5d"/>`;
+  if (holdingFlowers) {
+    s += `<rect x="-22" y="14" width="12" height="7" rx="3.5" fill="#fde8d0" transform="rotate(-20,-16,17)"/>`;
+    s += `<rect x="10" y="12" width="12" height="7" rx="3.5" fill="#fde8d0" transform="rotate(-40,16,15)"/>`;
+    s += flowerBouquet(-30, -20, 0.6);
+  } else {
+    s += `<rect x="-22" y="14" width="12" height="7" rx="3.5" fill="#fde8d0" transform="rotate(10,-16,17)"/>`;
+    s += `<rect x="10" y="14" width="12" height="7" rx="3.5" fill="#fde8d0" transform="rotate(-10,16,17)"/>`;
+  }
+  s += `<circle cx="0" cy="-2" r="16" fill="#fde8d0"/>`;
+  s += `<path d="M-16,-4 Q-16,-20 0,-20 Q16,-20 16,-4 Q14,-12 0,-12 Q-14,-12 -16,-4" fill="#2c2c2c"/>`;
+  s += `<path d="M-12,-16 Q-8,-22 0,-22 Q8,-22 12,-16" fill="#2c2c2c"/>`;
+  s += `<circle cx="-5" cy="-2" r="2.5" fill="#2c2c2c"/>`;
+  s += `<circle cx="5" cy="-2" r="2.5" fill="#2c2c2c"/>`;
+  s += `<circle cx="-4" cy="-3" r="0.8" fill="white"/>`;
+  s += `<circle cx="6" cy="-3" r="0.8" fill="white"/>`;
+  s += `<path d="M-4,4 Q0,9 4,4" fill="none" stroke="#2c2c2c" stroke-width="1.5" stroke-linecap="round"/>`;
+  s += `<circle cx="-9" cy="2" r="3" fill="#f4b8c1" opacity="0.4"/>`;
+  s += `<circle cx="9" cy="2" r="3" fill="#f4b8c1" opacity="0.4"/>`;
+  s += `</g>`;
+  return s;
+}
+
+function babyBoy(x, y, scale, sitting) {
+  let s = `<g transform="translate(${x},${y}) scale(${scale})">`;
+  const bodyY = sitting ? 18 : 15;
+  const bodyRY = sitting ? 14 : 16;
+  s += `<ellipse cx="0" cy="${bodyY}" rx="14" ry="${bodyRY}" fill="#d4e8d0"/>`;
+  if (sitting) {
+    s += `<ellipse cx="-8" cy="30" rx="6" ry="5" fill="#fde8d0"/>`;
+    s += `<ellipse cx="8" cy="30" rx="6" ry="5" fill="#fde8d0"/>`;
+  } else {
+    s += `<rect x="-10" y="28" width="7" height="10" rx="3.5" fill="#fde8d0"/>`;
+    s += `<rect x="3" y="28" width="7" height="10" rx="3.5" fill="#fde8d0"/>`;
+  }
+  s += `<ellipse cx="-16" cy="16" rx="5" ry="6" fill="#fde8d0"/>`;
+  s += `<ellipse cx="16" cy="16" rx="5" ry="6" fill="#fde8d0"/>`;
+  s += `<circle cx="0" cy="-4" r="15" fill="#fde8d0"/>`;
+  s += `<path d="M-8,-18 Q-4,-24 0,-18 Q4,-24 8,-18" fill="#2c2c2c"/>`;
+  s += `<path d="M-10,-16 Q-6,-22 -2,-16" fill="#2c2c2c"/>`;
+  s += `<path d="M2,-16 Q6,-22 10,-16" fill="#2c2c2c"/>`;
+  s += `<circle cx="-4" cy="-4" r="2.5" fill="#2c2c2c"/>`;
+  s += `<circle cx="4" cy="-4" r="2.5" fill="#2c2c2c"/>`;
+  s += `<circle cx="-3" cy="-5" r="0.8" fill="white"/>`;
+  s += `<circle cx="5" cy="-5" r="0.8" fill="white"/>`;
+  s += `<path d="M-5,2 Q0,8 5,2" fill="none" stroke="#2c2c2c" stroke-width="1.5" stroke-linecap="round"/>`;
+  s += `<circle cx="-9" cy="0" r="3.5" fill="#f4b8c1" opacity="0.45"/>`;
+  s += `<circle cx="9" cy="0" r="3.5" fill="#f4b8c1" opacity="0.45"/>`;
+  s += `</g>`;
+  return s;
+}
+
+function dad(x, y, scale, apron) {
+  let s = `<g transform="translate(${x},${y}) scale(${scale})">`;
+  s += `<rect x="-16" y="12" width="32" height="38" rx="10" fill="#6b8ea8"/>`;
+  if (apron) {
+    s += `<rect x="-12" y="18" width="24" height="30" rx="4" fill="#e8ddd0"/>`;
+    s += `<line x1="-12" y1="18" x2="-8" y2="8" stroke="#e8ddd0" stroke-width="3"/>`;
+    s += `<line x1="12" y1="18" x2="8" y2="8" stroke="#e8ddd0" stroke-width="3"/>`;
+  }
+  s += `<rect x="-12" y="48" width="10" height="18" rx="5" fill="#8a7e70"/>`;
+  s += `<rect x="2" y="48" width="10" height="18" rx="5" fill="#8a7e70"/>`;
+  s += `<ellipse cx="-7" cy="66" rx="7" ry="4" fill="#5a5046"/>`;
+  s += `<ellipse cx="7" cy="66" rx="7" ry="4" fill="#5a5046"/>`;
+  s += `<rect x="-28" y="16" width="14" height="8" rx="4" fill="#fde8d0" transform="rotate(10,-21,20)"/>`;
+  s += `<rect x="14" y="16" width="14" height="8" rx="4" fill="#fde8d0" transform="rotate(-10,21,20)"/>`;
+  s += `<circle cx="0" cy="-4" r="18" fill="#fde8d0"/>`;
+  s += `<path d="M-18,-6 Q-18,-24 0,-24 Q18,-24 18,-6 Q16,-16 0,-16 Q-16,-16 -18,-6" fill="#2c2c2c"/>`;
+  s += `<circle cx="-6" cy="-4" r="2.5" fill="#2c2c2c"/>`;
+  s += `<circle cx="6" cy="-4" r="2.5" fill="#2c2c2c"/>`;
+  s += `<circle cx="-5" cy="-5" r="0.8" fill="white"/>`;
+  s += `<circle cx="7" cy="-5" r="0.8" fill="white"/>`;
+  s += `<path d="M-5,4 Q0,10 5,4" fill="none" stroke="#2c2c2c" stroke-width="1.8" stroke-linecap="round"/>`;
+  s += `</g>`;
+  return s;
+}
+
+function mom(x, y, scale) {
+  let s = `<g transform="translate(${x},${y}) scale(${scale})">`;
+  s += `<path d="M-14,14 L-18,55 Q0,58 18,55 L14,14 Q0,10 -14,14" fill="#e8c4d8"/>`;
+  s += `<path d="M-14,14 Q0,18 14,14 Q0,10 -14,14" fill="#d4a0c0"/>`;
+  s += `<circle cx="-5" cy="30" r="2" fill="#f0d4e4" opacity="0.6"/>`;
+  s += `<circle cx="6" cy="35" r="1.5" fill="#c9b3d9" opacity="0.5"/>`;
+  s += `<circle cx="-8" cy="42" r="1.8" fill="#f0d4e4" opacity="0.6"/>`;
+  s += `<circle cx="3" cy="45" r="1.5" fill="#c9b3d9" opacity="0.5"/>`;
+  s += `<rect x="-10" y="52" width="8" height="14" rx="4" fill="#fde8d0"/>`;
+  s += `<rect x="2" y="52" width="8" height="14" rx="4" fill="#fde8d0"/>`;
+  s += `<ellipse cx="-6" cy="66" rx="6" ry="3.5" fill="#d4a0c0"/>`;
+  s += `<ellipse cx="6" cy="66" rx="6" ry="3.5" fill="#d4a0c0"/>`;
+  s += `<rect x="-26" y="16" width="14" height="7" rx="3.5" fill="#fde8d0" transform="rotate(15,-19,19)"/>`;
+  s += `<rect x="12" y="16" width="14" height="7" rx="3.5" fill="#fde8d0" transform="rotate(-15,19,19)"/>`;
+  s += `<circle cx="0" cy="-4" r="17" fill="#fde8d0"/>`;
+  s += `<path d="M-17,-6 Q-18,-24 0,-24 Q18,-24 17,-6" fill="#2c2c2c"/>`;
+  s += `<path d="M-17,-2 Q-22,10 -18,30 Q-16,20 -14,12 L-17,-2" fill="#2c2c2c"/>`;
+  s += `<path d="M17,-2 Q22,10 18,30 Q16,20 14,12 L17,-2" fill="#2c2c2c"/>`;
+  s += `<circle cx="-5" cy="-4" r="2.5" fill="#2c2c2c"/>`;
+  s += `<circle cx="5" cy="-4" r="2.5" fill="#2c2c2c"/>`;
+  s += `<circle cx="-4" cy="-5" r="0.8" fill="white"/>`;
+  s += `<circle cx="6" cy="-5" r="0.8" fill="white"/>`;
+  s += `<line x1="-8" y1="-6" x2="-9" y2="-8" stroke="#2c2c2c" stroke-width="1"/>`;
+  s += `<line x1="8" y1="-6" x2="9" y2="-8" stroke="#2c2c2c" stroke-width="1"/>`;
+  s += `<path d="M-4,4 Q0,9 4,4" fill="none" stroke="#2c2c2c" stroke-width="1.5" stroke-linecap="round"/>`;
+  s += `<circle cx="-9" cy="1" r="3" fill="#f4b8c1" opacity="0.4"/>`;
+  s += `<circle cx="9" cy="1" r="3" fill="#f4b8c1" opacity="0.4"/>`;
+  s += `</g>`;
+  return s;
+}
+
+function goldenDoodle(x, y, scale, lying) {
+  let s = `<g transform="translate(${x},${y}) scale(${scale})">`;
+  if (lying) {
+    s += `<ellipse cx="0" cy="10" rx="35" ry="14" fill="#deb96a"/>`;
+    s += `<ellipse cx="0" cy="10" rx="30" ry="11" fill="#e8c97a"/>`;
+    s += `<path d="M30,5 Q42,-5 38,5" fill="#deb96a" stroke="#deb96a" stroke-width="4" stroke-linecap="round"/>`;
+    s += `<ellipse cx="-25" cy="22" rx="7" ry="5" fill="#e8c97a"/>`;
+    s += `<ellipse cx="-12" cy="23" rx="6" ry="4" fill="#e8c97a"/>`;
+    s += `<circle cx="-30" cy="-5" r="14" fill="#e8c97a"/>`;
+    s += `<circle cx="-36" cy="-14" r="5" fill="#deb96a"/>`;
+    s += `<circle cx="-28" cy="-16" r="5" fill="#deb96a"/>`;
+    s += `<circle cx="-22" cy="-12" r="4" fill="#deb96a"/>`;
+    s += `<ellipse cx="-42" cy="-2" rx="6" ry="9" fill="#c9a55a" transform="rotate(15,-42,-2)"/>`;
+    s += `<ellipse cx="-20" cy="-2" rx="5" ry="8" fill="#c9a55a" transform="rotate(-10,-20,-2)"/>`;
+    s += `<ellipse cx="-34" cy="0" rx="6" ry="4" fill="#fde8d0"/>`;
+    s += `<ellipse cx="-35" cy="-2" rx="3" ry="2" fill="#3c3028"/>`;
+    s += `<circle cx="-34" cy="-8" r="2" fill="#3c3028"/>`;
+    s += `<circle cx="-26" cy="-7" r="2" fill="#3c3028"/>`;
+    s += `<circle cx="-33.5" cy="-8.5" r="0.6" fill="white"/>`;
+    s += `<circle cx="-25.5" cy="-7.5" r="0.6" fill="white"/>`;
+    s += `<path d="M-36,3 Q-35,8 -33,3" fill="#f4a0a0"/>`;
+  } else {
+    s += `<ellipse cx="0" cy="18" rx="18" ry="22" fill="#e8c97a"/>`;
+    s += `<path d="M14,20 Q28,10 24,20" fill="#deb96a" stroke="#deb96a" stroke-width="4" stroke-linecap="round"/>`;
+    s += `<ellipse cx="-8" cy="38" rx="6" ry="4" fill="#e8c97a"/>`;
+    s += `<ellipse cx="8" cy="38" rx="6" ry="4" fill="#e8c97a"/>`;
+    s += `<circle cx="0" cy="-8" r="16" fill="#e8c97a"/>`;
+    s += `<circle cx="-8" cy="-20" r="5" fill="#deb96a"/>`;
+    s += `<circle cx="0" cy="-22" r="5" fill="#deb96a"/>`;
+    s += `<circle cx="8" cy="-20" r="5" fill="#deb96a"/>`;
+    s += `<ellipse cx="-16" cy="-4" rx="6" ry="10" fill="#c9a55a" transform="rotate(10,-16,-4)"/>`;
+    s += `<ellipse cx="16" cy="-4" rx="6" ry="10" fill="#c9a55a" transform="rotate(-10,16,-4)"/>`;
+    s += `<ellipse cx="0" cy="-2" rx="7" ry="5" fill="#fde8d0"/>`;
+    s += `<ellipse cx="0" cy="-4" rx="3.5" ry="2.5" fill="#3c3028"/>`;
+    s += `<circle cx="-6" cy="-10" r="2.5" fill="#3c3028"/>`;
+    s += `<circle cx="6" cy="-10" r="2.5" fill="#3c3028"/>`;
+    s += `<circle cx="-5.5" cy="-10.5" r="0.7" fill="white"/>`;
+    s += `<circle cx="6.5" cy="-10.5" r="0.7" fill="white"/>`;
+    s += `<path d="M-3,2 Q0,8 3,2" fill="#f4a0a0"/>`;
+  }
+  s += `</g>`;
+  return s;
+}
+
+// ─── Page Builders ───
+function page1() {
+  return `<svg viewBox="0 0 380 520" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="p1bg" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#fef6f0"/><stop offset="100%" stop-color="#f0e4f0"/></radialGradient></defs>
+    <rect width="380" height="520" fill="url(#p1bg)"/>
+    ${lavenderSprig(30,60,-15)}${lavenderSprig(50,80,-8)}
+    ${lavenderSprig(330,60,15)}${lavenderSprig(350,80,8)}
+    ${lavenderSprig(30,380,-20)}${lavenderSprig(350,380,20)}
+    ${heartPath(80,120,2.5,'#f4b8c1',0.5)}
+    ${heartPath(300,140,2,'#c9b3d9',0.4)}
+    ${heartPath(60,350,1.8,'#f4b8c1',0.3)}
+    ${heartPath(320,360,2.2,'#c9b3d9',0.4)}
+    ${heartPath(190,100,3,'#f4b8c1',0.3)}
+    ${flowerBouquet(190,220,1.8)}
+    <text x="190" y="370" text-anchor="middle" font-family="Georgia, serif" font-size="36" fill="#8b6e8e" font-weight="bold">Happy</text>
+    <text x="190" y="415" text-anchor="middle" font-family="Georgia, serif" font-size="36" fill="#8b6e8e" font-weight="bold">Mother's Day!</text>
+    <path d="M120,435 Q190,450 260,435" fill="none" stroke="#d4a0c0" stroke-width="2" opacity="0.6"/>
+    ${heartPath(155,455,1.5,'#f4b8c1',0.6)}
+    ${heartPath(190,450,2,'#c9b3d9',0.5)}
+    ${heartPath(225,455,1.5,'#f4b8c1',0.6)}
+  </svg>`;
+}
+
+function page2() {
+  return `<svg viewBox="0 0 380 520" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="p2bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e8f4f8"/><stop offset="100%" stop-color="#f8f0f8"/></linearGradient></defs>
+    <rect width="380" height="520" fill="url(#p2bg)"/>
+    <rect x="0" y="360" width="380" height="160" fill="#f0e8e0"/>
+    <rect x="0" y="356" width="380" height="8" fill="#e4d8cc" rx="2"/>
+    <rect x="240" y="80" width="60" height="50" rx="3" fill="#fff" stroke="#d4c8bc" stroke-width="2"/>
+    ${heartPath(270,98,2,'#f4b8c1',0.5)}
+    <rect x="60" y="60" width="80" height="90" rx="4" fill="#d4e8ee" stroke="#c8bca8" stroke-width="3"/>
+    <line x1="100" y1="60" x2="100" y2="150" stroke="#c8bca8" stroke-width="2"/>
+    <line x1="60" y1="105" x2="140" y2="105" stroke="#c8bca8" stroke-width="2"/>
+    <circle cx="90" cy="85" r="12" fill="#ffeaa7" opacity="0.6"/>
+    <rect x="140" y="170" width="180" height="55" rx="20" fill="white" stroke="#d4c0d8" stroke-width="2"/>
+    <path d="M200,225 L190,245 L215,225" fill="white" stroke="#d4c0d8" stroke-width="2"/>
+    <path d="M200,225 L210,225" fill="white" stroke="white" stroke-width="3"/>
+    <text x="230" y="197" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#8b6e8e">"We love you,</text>
+    <text x="230" y="215" text-anchor="middle" font-family="Georgia, serif" font-size="14" fill="#8b6e8e">Mommy!"</text>
+    ${toddlerBoy(155,310,1.2,true)}
+    ${babyBoy(240,320,1.1,false)}
+    ${heartPath(310,280,1.5,'#f4b8c1',0.4)}
+    ${heartPath(100,270,1.2,'#c9b3d9',0.3)}
+    ${heartPath(330,200,1,'#f4b8c1',0.3)}
+  </svg>`;
+}
+
+function page3() {
+  return `<svg viewBox="0 0 380 520" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="p3bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fef8ee"/><stop offset="100%" stop-color="#f8f0e8"/></linearGradient></defs>
+    <rect width="380" height="520" fill="url(#p3bg)"/>
+    <rect x="10" y="40" width="80" height="120" rx="4" fill="#c8a882" stroke="#b89870" stroke-width="2"/>
+    <rect x="15" y="45" width="70" height="50" rx="2" fill="#d4b894"/>
+    <circle cx="50" cy="125" r="3" fill="#a08060"/>
+    <rect x="290" y="40" width="80" height="120" rx="4" fill="#c8a882" stroke="#b89870" stroke-width="2"/>
+    <rect x="295" y="45" width="70" height="50" rx="2" fill="#d4b894"/>
+    <circle cx="330" cy="125" r="3" fill="#a08060"/>
+    <rect x="140" y="30" width="100" height="80" rx="4" fill="#d4eef8" stroke="#c8bca8" stroke-width="3"/>
+    <line x1="190" y1="30" x2="190" y2="110" stroke="#c8bca8" stroke-width="2"/>
+    <line x1="140" y1="70" x2="240" y2="70" stroke="#c8bca8" stroke-width="2"/>
+    <rect x="0" y="165" width="380" height="14" fill="#b89870" rx="2"/>
+    <rect x="0" y="175" width="380" height="180" fill="#d4b894"/>
+    <rect x="0" y="355" width="380" height="165" fill="#f0e4d8"/>
+    <rect x="120" y="178" width="140" height="175" rx="4" fill="#e8e0d8" stroke="#ccc" stroke-width="2"/>
+    <circle cx="155" cy="170" r="14" fill="#555" opacity="0.3"/>
+    <circle cx="155" cy="170" r="8" fill="#666" opacity="0.3"/>
+    <circle cx="225" cy="170" r="14" fill="#555" opacity="0.3"/>
+    <ellipse cx="155" cy="160" rx="30" ry="8" fill="#444"/>
+    <ellipse cx="155" cy="157" rx="27" ry="7" fill="#555"/>
+    <ellipse cx="155" cy="155" rx="24" ry="6" fill="#ffd700" opacity="0.8"/>
+    <line x1="183" y1="158" x2="210" y2="150" stroke="#8b7355" stroke-width="3" stroke-linecap="round"/>
+    <rect x="260" y="135" width="22" height="30" rx="3" fill="#ffd48a" stroke="#e8b850" stroke-width="1.5"/>
+    <rect x="257" y="132" width="28" height="6" rx="3" fill="#e8e0d8"/>
+    <rect x="282" y="140" width="6" height="18" rx="3" fill="#e8e0d8"/>
+    <ellipse cx="320" cy="162" rx="28" ry="8" fill="#e0e8e0" stroke="#c0c8c0" stroke-width="1"/>
+    <circle cx="310" cy="155" r="5" fill="#ff6b6b" opacity="0.8"/>
+    <circle cx="322" cy="153" r="4" fill="#ffa94d" opacity="0.8"/>
+    <circle cx="330" cy="157" r="3.5" fill="#ffe066" opacity="0.8"/>
+    <circle cx="315" cy="158" r="3" fill="#4ecdc4" opacity="0.6"/>
+    <rect x="30" y="125" width="75" height="40" rx="3" fill="white" transform="rotate(-5,65,145)" stroke="#e0d0e0" stroke-width="1"/>
+    <text x="68" y="143" text-anchor="middle" font-family="Comic Sans MS, cursive" font-size="10" fill="#c47090" transform="rotate(-5,68,143)">Lunch for</text>
+    <text x="68" y="157" text-anchor="middle" font-family="Comic Sans MS, cursive" font-size="11" fill="#c47090" transform="rotate(-5,68,157)">Mommy! ♥</text>
+    ${dad(167,295,2.46,true)}
+    <rect x="15" y="375" width="80" height="28" rx="6" fill="#c8b8a0"/>
+    ${toddlerBoy(55,280,2.17,false)}
+    <rect x="250" y="285" width="85" height="95" rx="8" fill="#e8e0d8" stroke="#ccc" stroke-width="1.5"/>
+    <rect x="246" y="275" width="93" height="14" rx="5" fill="#d0c8c0"/>
+    ${babyBoy(293,310,1.71,true)}
+  </svg>`;
+}
+
+function page4() {
+  return `<svg viewBox="0 0 380 520" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="p4bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f8f0f8"/><stop offset="100%" stop-color="#f0e8f0"/></linearGradient></defs>
+    <rect width="380" height="520" fill="url(#p4bg)"/>
+    ${balloon(40,20,'#c9b3d9')}${balloon(90,10,'#f4b8c1')}
+    ${balloon(280,15,'white')}${balloon(330,25,'#c9b3d9')}
+    ${balloon(160,5,'#f4b8c1')}${balloon(220,10,'white')}
+    <path d="M0,80 Q95,95 190,80 Q285,65 380,80" fill="none" stroke="#f4b8c1" stroke-width="2.5" opacity="0.5"/>
+    <path d="M0,90 Q95,75 190,90 Q285,105 380,90" fill="none" stroke="#c9b3d9" stroke-width="2" opacity="0.4"/>
+    <rect x="120" y="100" width="140" height="50" rx="6" fill="white" stroke="#d4c0d8" stroke-width="2"/>
+    <text x="190" y="122" text-anchor="middle" font-family="Comic Sans MS, cursive" font-size="12" fill="#c47090">Lunch for</text>
+    <text x="190" y="140" text-anchor="middle" font-family="Comic Sans MS, cursive" font-size="14" fill="#c47090">Mommy! ♥</text>
+    <ellipse cx="190" cy="290" rx="160" ry="40" fill="#e8ddd0"/>
+    <ellipse cx="190" cy="285" rx="155" ry="38" fill="#f0e8dc"/>
+    <path d="M35,290 Q45,300 55,290 Q65,300 75,290 Q85,300 95,290 Q105,300 115,290 Q125,300 135,290 Q145,300 155,290 Q165,300 175,290 Q185,300 195,290 Q205,300 215,290 Q225,300 235,290 Q245,300 255,290 Q265,300 275,290 Q285,300 295,290 Q305,300 315,290 Q325,300 335,290 Q345,300 345,290" fill="none" stroke="#d4c0d8" stroke-width="1.5" opacity="0.5"/>
+    <rect x="60" y="245" width="20" height="25" rx="4" fill="#c9b3d9" opacity="0.7"/>
+    ${lavenderSprig(65,210,-10)}${lavenderSprig(75,215,5)}${lavenderSprig(70,208,0)}
+    <ellipse cx="140" cy="270" rx="28" ry="10" fill="#d4e8e8" stroke="#b8d0d0" stroke-width="1"/>
+    <ellipse cx="140" cy="266" rx="20" ry="7" fill="#ffd700" opacity="0.7"/>
+    <ellipse cx="240" cy="270" rx="28" ry="10" fill="#d4e8e8" stroke="#b8d0d0" stroke-width="1"/>
+    <ellipse cx="240" cy="266" rx="20" ry="7" fill="#ffd700" opacity="0.7"/>
+    <rect x="180" y="252" width="14" height="20" rx="2" fill="#ffd48a" stroke="#e8b850" stroke-width="1" opacity="0.8"/>
+    <ellipse cx="310" cy="268" rx="30" ry="10" fill="#d4e8d4" stroke="#b8d0b8" stroke-width="1"/>
+    <circle cx="300" cy="262" r="4" fill="#ff6b6b" opacity="0.7"/>
+    <circle cx="310" cy="260" r="3.5" fill="#ffa94d" opacity="0.7"/>
+    <circle cx="320" cy="263" r="3" fill="#ffe066" opacity="0.7"/>
+    <circle cx="306" cy="265" r="2.5" fill="#74b9ff" opacity="0.5"/>
+    ${dad(55,310,1.99,false)}
+    ${mom(320,305,1.99)}
+    ${toddlerBoy(147,330,1.79,false)}
+    ${babyBoy(235,335,1.61,true)}
+    ${flowerBouquet(190,240,0.5)}
+  </svg>`;
+}
+
+function page5() {
+  return `<svg viewBox="0 0 380 520" xmlns="http://www.w3.org/2000/svg">
+    <defs><linearGradient id="p5bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#f8f4f0"/><stop offset="100%" stop-color="#f0e8f0"/></linearGradient></defs>
+    <rect width="380" height="520" fill="url(#p5bg)"/>
+    ${balloon(30,20,'#c9b3d9')}${balloon(320,30,'#f4b8c1')}
+    ${balloon(280,15,'white')}${balloon(70,10,'#f4b8c1')}
+    <rect x="130" y="60" width="120" height="100" rx="4" fill="#d4eef8" stroke="#c8bca8" stroke-width="3"/>
+    <line x1="190" y1="60" x2="190" y2="160" stroke="#c8bca8" stroke-width="2"/>
+    <line x1="130" y1="110" x2="250" y2="110" stroke="#c8bca8" stroke-width="2"/>
+    <rect x="125" y="155" width="130" height="12" rx="2" fill="#e8ddd0"/>
+    ${lavenderSprig(150,120,-8)}${lavenderSprig(170,118,0)}
+    ${lavenderSprig(210,120,5)}${lavenderSprig(230,118,10)}
+    <rect x="30" y="240" width="320" height="100" rx="20" fill="#d8d0c8"/>
+    <rect x="30" y="230" width="320" height="80" rx="18" fill="#e4dcd4"/>
+    <rect x="25" y="190" width="330" height="60" rx="15" fill="#cec6be"/>
+    <rect x="20" y="210" width="35" height="110" rx="12" fill="#d8d0c8"/>
+    <rect x="325" y="210" width="35" height="110" rx="12" fill="#d8d0c8"/>
+    <ellipse cx="65" cy="240" rx="18" ry="22" fill="#c9b3d9" opacity="0.6" transform="rotate(-10,65,240)"/>
+    <ellipse cx="320" cy="240" rx="18" ry="22" fill="#f4b8c1" opacity="0.5" transform="rotate(10,320,240)"/>
+    ${goldenDoodle(315,240,1.28,true)}
+    ${mom(190,240,1.49)}
+    <g transform="translate(95,235) scale(1.42)">
+      <rect x="-44" y="16" width="30" height="8" rx="4" fill="#fde8d0" transform="rotate(30,-29,20)"/>
+      <rect x="14" y="16" width="30" height="8" rx="4" fill="#fde8d0" transform="rotate(-30,29,20)"/>
+      <rect x="-16" y="12" width="32" height="38" rx="10" fill="#6b8ea8"/>
+      <!-- Legs -->
+      <rect x="-10" y="48" width="8" height="14" rx="4" fill="#8a7e70"/>
+      <rect x="2" y="48" width="8" height="14" rx="4" fill="#8a7e70"/>
+      <!-- Shoes -->
+      <ellipse cx="-6" cy="62" rx="6" ry="3.5" fill="#5a5046"/>
+      <ellipse cx="6" cy="62" rx="6" ry="3.5" fill="#5a5046"/>
+      <circle cx="0" cy="-4" r="18" fill="#fde8d0"/>
+      <path d="M-18,-6 Q-18,-24 0,-24 Q18,-24 18,-6 Q16,-16 0,-16 Q-16,-16 -18,-6" fill="#2c2c2c"/>
+      <circle cx="-6" cy="-4" r="2.5" fill="#2c2c2c"/>
+      <circle cx="6" cy="-4" r="2.5" fill="#2c2c2c"/>
+      <path d="M-5,4 Q0,10 5,4" fill="none" stroke="#2c2c2c" stroke-width="1.8" stroke-linecap="round"/>
+    </g>
+    ${toddlerBoy(240,270,1.28,false)}
+    ${babyBoy(190,284,1.01,true)}
+    ${heartPath(120,175,2,'#f4b8c1',0.5)}
+    ${heartPath(260,170,1.8,'#c9b3d9',0.4)}
+    ${heartPath(190,160,2.5,'#f4b8c1',0.3)}
+    ${heartPath(150,185,1.2,'#c9b3d9',0.3)}
+    ${heartPath(230,182,1.5,'#f4b8c1',0.4)}
+    <rect x="0" y="340" width="380" height="180" fill="#f0e4d8" opacity="0.5"/>
+  </svg>`;
+}
+
+function page6() {
+  return `<svg viewBox="0 0 380 520" xmlns="http://www.w3.org/2000/svg">
+    <defs><radialGradient id="p6bg" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#fef6f0"/><stop offset="100%" stop-color="#f0e4f0"/></radialGradient></defs>
+    <rect width="380" height="520" fill="url(#p6bg)"/>
+    ${lavenderSprig(25,50,-15)}${lavenderSprig(45,70,-5)}
+    ${lavenderSprig(335,50,15)}${lavenderSprig(355,70,5)}
+    ${lavenderSprig(25,350,-20)}${lavenderSprig(45,370,-10)}
+    ${lavenderSprig(335,350,20)}${lavenderSprig(355,370,10)}
+    ${heartPath(80,100,2,'#f4b8c1',0.4)}
+    ${heartPath(300,110,1.8,'#c9b3d9',0.3)}
+    ${heartPath(60,280,1.5,'#f4b8c1',0.3)}
+    ${heartPath(320,300,2,'#c9b3d9',0.4)}
+    ${heartPath(190,80,3,'#f4b8c1',0.25)}
+    ${heartPath(150,400,1.8,'#c9b3d9',0.3)}
+    ${heartPath(230,410,1.5,'#f4b8c1',0.3)}
+    ${heartPath(190,180,8,'#f4b8c1',0.15)}
+    ${flowerBouquet(80,200,0.8)}
+    ${flowerBouquet(300,200,0.8)}
+    <text x="190" y="290" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#8b6e8e">Thank you for everything</text>
+    <text x="190" y="315" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#8b6e8e">you do and continue to be</text>
+    <text x="190" y="340" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#8b6e8e">the best mommy ever!</text>
+    <path d="M120,360 Q190,375 260,360" fill="none" stroke="#d4a0c0" stroke-width="2" opacity="0.6"/>
+    <text x="190" y="400" text-anchor="middle" font-family="Georgia, serif" font-size="20" fill="#a0708e" font-weight="bold">We all love you</text>
+    <text x="190" y="428" text-anchor="middle" font-family="Georgia, serif" font-size="20" fill="#a0708e" font-weight="bold">with all our hearts!</text>
+    <text x="190" y="470" text-anchor="middle" font-family="Comic Sans MS, cursive" font-size="13" fill="#b89aac">— Emerson, Ellison, Dad &amp; Rosey 🐾</text>
+  </svg>`;
+}
+
+// ─── Pages Data ───
+const pages = [
+  { svg: page1, narration: null },
+  { svg: page2, narration: "Emerson and little Ellison love their mommy so much! Emerson picked the prettiest flowers just for her." },
+  { svg: page3, narration: "Dad, Emerson, and baby Ellison are busy in the kitchen! They made a yummy omelette, fresh orange juice, and a colorful plate of fruits — all for Mommy!" },
+  { svg: page4, narration: "The whole family gathers around the dining table, decorated with beautiful lavender flowers, balloons, and festive ribbons. What a special lunch!" },
+  { svg: page5, narration: "Mommy feels all the love! The whole family gives her the biggest, warmest hug on the couch. Even Rosey snuggles in. One happy family!" },
+  { svg: page6, narration: null },
+];
+
+let currentPage = 0;
+let isTransitioning = false;
+
+const container = document.getElementById('pageContainer');
+const narrationDiv = document.getElementById('narration');
+const narrationText = document.getElementById('narrationText');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+const dotsDiv = document.getElementById('dots');
+
+// Build dots
+pages.forEach((_, i) => {
+  const dot = document.createElement('div');
+  dot.className = 'dot' + (i === 0 ? ' active' : '');
+  dot.onclick = () => goToPage(i);
+  dotsDiv.appendChild(dot);
+});
+
+function renderPage() {
+  const page = pages[currentPage];
+  container.innerHTML = page.svg();
+  if (page.narration) {
+    narrationDiv.style.display = 'block';
+    narrationText.textContent = page.narration;
+  } else {
+    narrationDiv.style.display = 'none';
+  }
+  prevBtn.disabled = currentPage === 0;
+  nextBtn.disabled = currentPage === pages.length - 1;
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.className = 'dot' + (i === currentPage ? ' active' : '');
+  });
+}
+
+function goToPage(n) {
+  if (isTransitioning || n < 0 || n >= pages.length || n === currentPage) return;
+  isTransitioning = true;
+  container.classList.add('fading');
+  narrationDiv.classList.add('fading');
+  setTimeout(() => {
+    currentPage = n;
+    renderPage();
+    requestAnimationFrame(() => {
+      container.classList.remove('fading');
+      narrationDiv.classList.remove('fading');
+      isTransitioning = false;
+    });
+  }, 400);
+}
+
+// Swipe support
+let touchStartX = 0;
+const book = document.getElementById('book');
+book.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+book.addEventListener('touchend', e => {
+  const diff = touchStartX - e.changedTouches[0].screenX;
+  if (Math.abs(diff) > 50) {
+    if (diff > 0) goToPage(currentPage + 1);
+    else goToPage(currentPage - 1);
+  }
+}, { passive: true });
+
+// Keyboard support
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') goToPage(currentPage + 1);
+  if (e.key === 'ArrowLeft') goToPage(currentPage - 1);
+});
+
+// Initial render
+renderPage();
+</script>
+</body>
+</html>
